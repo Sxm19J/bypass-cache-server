@@ -1,0 +1,17 @@
+{
+  "name": "bypass-cache-server",
+  "version": "1.0.0",
+  "description": "Cloud cache for bypass.city links",
+  "main": "api/cache.js",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel deploy --prod"
+  },
+  "dependencies": {
+    "@vercel/kv": "^1.0.0",
+    "cors": "^2.8.5"
+  },
+  "devDependencies": {
+    "vercel": "^32.0.0"
+  }
+}
