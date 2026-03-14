@@ -3,7 +3,7 @@ export default function handler(req, res) {
   res.status(200).send(`<!DOCTYPE html>
 <html>
 <head>
-  <title>Bypass Cache</title>
+  <title>Permanent Bypass Cache</title>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
@@ -19,8 +19,18 @@ export default function handler(req, res) {
       margin: 0 auto;
     }
     h1 {
-      color: #3b82f6;
-      margin-bottom: 30px;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .permanent-badge {
+      display: inline-block;
+      background: #10b981;
+      color: white;
+      padding: 5px 15px;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      margin: 10px 0 30px 0;
     }
     .stats-grid {
       display: grid;
@@ -77,16 +87,22 @@ export default function handler(req, res) {
       padding: 10px 20px;
       border-radius: 8px;
       cursor: pointer;
-      margin-bottom: 20px;
+      margin: 20px 0;
     }
     .refresh-btn:hover {
       background: #2563eb;
+    }
+    .warning {
+      color: #f59e0b;
+      font-size: 0.9rem;
+      margin-top: 20px;
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>🚀 Bypass Cache</h1>
+    <h1>🚀 Permanent Bypass Cache</h1>
+    <div class="permanent-badge">♾️ Links stored forever</div>
     
     <button class="refresh-btn" onclick="loadStats()">🔄 Refresh</button>
     
@@ -110,8 +126,12 @@ export default function handler(req, res) {
     </div>
 
     <div class="recent-list">
-      <h3 style="margin-top: 0;">Recent Mappings</h3>
+      <h3 style="margin-top: 0;">📝 Recent Mappings (Last 100)</h3>
       <div id="recent"></div>
+    </div>
+    
+    <div class="warning">
+      ⚠️ These mappings are stored PERMANENTLY and will NEVER disappear
     </div>
   </div>
 
