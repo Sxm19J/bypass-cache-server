@@ -83,10 +83,6 @@ export default function handler(req, res) {
       color: #64748b;
       font-size: 0.75rem;
     }
-    .arrow {
-      color: #3b82f6;
-      margin: 0 10px;
-    }
     .clear-btn {
       background: linear-gradient(135deg, #ef4444, #dc2626);
       color: white;
@@ -136,7 +132,8 @@ export default function handler(req, res) {
   <script>
     async function loadStats() {
       try {
-        const response = await fetch('/api/cache?action=stats');
+        // Use /cache.js instead of /cache
+        const response = await fetch('/api/cache.js?action=stats');
         const data = await response.json();
         
         document.getElementById('totalEntries').textContent = data.totalEntries || 0;
@@ -171,10 +168,8 @@ export default function handler(req, res) {
     async function clearCache() {
       if (confirm('Are you sure you want to clear the entire cache?')) {
         try {
-          // For demo purposes - in production you'd need an actual clear endpoint
-          localStorage.clear();
-          loadStats();
-          alert('Cache cleared!');
+          // Note: You'll need to implement a clear endpoint if you want this
+          alert('Clear cache functionality coming soon!');
         } catch (e) {
           alert('Error clearing cache');
         }
