@@ -1,11 +1,15 @@
-// Simple in-memory cache - no KV dependencies
-let cache = {};
-let stats = {
-  hits: 0,
-  misses: 0,
-  total: 0,
-  recent: []
-};
+import { createClient } from '@vercel/kv';
+
+// Initialize KV client
+const kv = createClient({
+  url: process.env.KV_REST_API_URL,
+  token: process.env.KV_REST_API_TOKEN,
+});
+
+const CACHE_PREFIX = 'bypass:';
+const STATS_KEY = 'bypass:stats';
+const RECENT_KEY = 'bypass:recent';
+const CACHE_TTL = 60 * 60 * 24; // 24 hours in seconds
 
 function setCors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -16,7 +20,6 @@ function setCors(res) {
 export default async function handler(req, res) {
   setCors(res);
 
-  // Handle preflight
   if (req.method === 'OPTIONS') {
     res.status(200).end();
     return;
@@ -28,13 +31,28 @@ export default async function handler(req, res) {
 
     // Stats endpoint
     if (action === 'stats') {
-      return res.status(200).json({
-        hits: stats.hits,
-        misses: stats.misses,
-        total: stats.total,
-        recent: stats.recent.slice(0, 20),
-        totalEntries: Object.keys(cache).length
-      });
+      try {
+        // Get stats
+        const stats = await kv.hgetall(STATS_KEY) || { hits: 0, misses: 0, total: 0 };
+        
+        // Get recent entries
+        const recentRaw = await kv.lrange(RECENT_KEY, 0, 19);
+        const recent = recentRaw.map(item => JSON.parse(item));
+        
+        // Get total entries count
+        const keys = await kv.keys(`${CACHE_PREFIX}*`);
+        
+        return res.status(200).json({
+          hits: Number(stats.hits || 0),
+          misses: Number(stats.misses || 0),
+          total: Number(stats.total || 0),
+          recent: recent,
+          totalEntries: keys.length
+        });
+      } catch (error) {
+        console.error('Error getting stats:', error);
+        return res.status(500).json({ error: 'Failed to get stats' });
+      }
     }
 
     // Cache lookup
@@ -42,21 +60,33 @@ export default async function handler(req, res) {
       const decodedUrl = decodeURIComponent(url);
       console.log(`🔍 Looking up: ${decodedUrl}`);
       
-      if (cache[decodedUrl]) {
-        stats.hits++;
-        console.log(`✅ Cache HIT for: ${decodedUrl} -> ${cache[decodedUrl]}`);
-        return res.status(200).json({ 
-          success: true, 
-          url: cache[decodedUrl],
-          source: 'cache'
-        });
-      } else {
-        stats.misses++;
-        console.log(`❌ Cache MISS for: ${decodedUrl}`);
-        return res.status(404).json({ 
-          success: false, 
-          message: 'Not in cache' 
-        });
+      try {
+        const key = CACHE_PREFIX + decodedUrl;
+        const cached = await kv.get(key);
+        
+        if (cached) {
+          // Increment hits
+          await kv.hincrby(STATS_KEY, 'hits', 1);
+          console.log(`✅ Cache HIT for: ${decodedUrl} -> ${cached}`);
+          
+          return res.status(200).json({ 
+            success: true, 
+            url: cached,
+            source: 'cache'
+          });
+        } else {
+          // Increment misses
+          await kv.hincrby(STATS_KEY, 'misses', 1);
+          console.log(`❌ Cache MISS for: ${decodedUrl}`);
+          
+          return res.status(404).json({ 
+            success: false, 
+            message: 'Not in cache' 
+          });
+        }
+      } catch (error) {
+        console.error('Error looking up cache:', error);
+        return res.status(500).json({ error: 'Failed to lookup cache' });
       }
     }
 
@@ -71,31 +101,40 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Missing original or bypassed url' });
     }
 
-    // Save to cache
-    cache[original] = bypassed;
-    stats.total++;
-    
-    // Log the mapping
-    console.log(`💾 Caching: ${original} -> ${bypassed}`);
-    
-    // Add to recent list
-    stats.recent.unshift({
-      original: original,
-      bypassed: bypassed,
-      timestamp: Date.now()
-    });
-    
-    // Keep only last 50 entries
-    stats.recent = stats.recent.slice(0, 50);
-
-    return res.status(200).json({ 
-      success: true, 
-      message: 'Saved to cache',
-      mapping: {
-        original,
-        bypassed
-      }
-    });
+    try {
+      const key = CACHE_PREFIX + original;
+      
+      // Save to cache with TTL
+      await kv.set(key, bypassed, { ex: CACHE_TTL });
+      
+      // Increment total count
+      await kv.hincrby(STATS_KEY, 'total', 1);
+      
+      // Log the mapping
+      console.log(`💾 Caching: ${original} -> ${bypassed}`);
+      
+      // Add to recent list
+      const recentEntry = {
+        original: original,
+        bypassed: bypassed,
+        timestamp: Date.now()
+      };
+      
+      await kv.lpush(RECENT_KEY, JSON.stringify(recentEntry));
+      await kv.ltrim(RECENT_KEY, 0, 49); // Keep only last 50
+      
+      return res.status(200).json({ 
+        success: true, 
+        message: 'Saved to cache',
+        mapping: {
+          original,
+          bypassed
+        }
+      });
+    } catch (error) {
+      console.error('Error saving to cache:', error);
+      return res.status(500).json({ error: 'Failed to save to cache' });
+    }
   }
 
   return res.status(405).json({ error: 'Method not allowed' });
