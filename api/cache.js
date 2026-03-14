@@ -1,22 +1,61 @@
-import { createClient } from '@vercel/kv';
+import { put, list, head } from '@vercel/blob';
+import { createHash } from 'crypto';
 
-// Initialize KV client
-const kv = createClient({
-  url: process.env.KV_REST_API_URL,
-  token: process.env.KV_REST_API_TOKEN,
-});
+// Simple in-memory cache for stats (Blob is for permanent storage)
+let stats = {
+  hits: 0,
+  misses: 0,
+  total: 0
+};
 
-const CACHE_PREFIX = 'bypass:';
-const STATS_KEY = 'bypass:stats';
-const RECENT_KEY = 'bypass:recent';
+// Stats file in blob
+const STATS_FILE = 'stats.json';
+const MAPPINGS_PREFIX = 'mappings/';
+const RECENT_FILE = 'recent.json';
 
-export default async function handler(req, res) {
-  // Set CORS headers
+function setCors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+}
 
-  // Handle preflight
+// Helper to get stats from blob
+async function getStats() {
+  try {
+    const { url } = await head(STATS_FILE);
+    const response = await fetch(url);
+    return await response.json();
+  } catch {
+    return { hits: 0, misses: 0, total: 0 };
+  }
+}
+
+// Helper to save stats to blob
+async function saveStats(newStats) {
+  const statsBlob = new Blob([JSON.stringify(newStats)], { type: 'application/json' });
+  await put(STATS_FILE, statsBlob, { access: 'public' });
+}
+
+// Helper to get recent mappings
+async function getRecent() {
+  try {
+    const { url } = await head(RECENT_FILE);
+    const response = await fetch(url);
+    return await response.json();
+  } catch {
+    return [];
+  }
+}
+
+// Helper to save recent mappings
+async function saveRecent(recent) {
+  const recentBlob = new Blob([JSON.stringify(recent)], { type: 'application/json' });
+  await put(RECENT_FILE, recentBlob, { access: 'public' });
+}
+
+export default async function handler(req, res) {
+  setCors(res);
+
   if (req.method === 'OPTIONS') {
     res.status(200).end();
     return;
@@ -29,58 +68,76 @@ export default async function handler(req, res) {
     // Stats endpoint
     if (action === 'stats') {
       try {
-        // Get stats
-        const stats = await kv.hgetall(STATS_KEY) || { hits: 0, misses: 0, total: 0 };
+        const currentStats = await getStats();
+        const recent = await getRecent();
         
-        // Get recent entries (last 50)
-        const recentRaw = await kv.lrange(RECENT_KEY, 0, 49);
-        const recent = recentRaw.map(item => JSON.parse(item));
-        
-        // Get total entries count
-        const keys = await kv.keys(`${CACHE_PREFIX}*`);
+        // List all mapping files
+        const { blobs } = await list({ prefix: MAPPINGS_PREFIX });
         
         return res.status(200).json({
-          hits: Number(stats.hits || 0),
-          misses: Number(stats.misses || 0),
-          total: Number(stats.total || 0),
-          recent: recent,
-          totalEntries: keys.length
+          hits: currentStats.hits || 0,
+          misses: currentStats.misses || 0,
+          total: currentStats.total || 0,
+          recent: recent.slice(0, 20),
+          totalEntries: blobs.length
         });
       } catch (error) {
         console.error('Error getting stats:', error);
-        return res.status(500).json({ error: 'Failed to get stats' });
+        return res.status(200).json({
+          hits: 0,
+          misses: 0,
+          total: 0,
+          recent: [],
+          totalEntries: 0
+        });
       }
     }
 
     // Cache lookup
     if (url) {
       const decodedUrl = decodeURIComponent(url);
+      console.log(`🔍 Looking up: ${decodedUrl}`);
       
       try {
-        const key = CACHE_PREFIX + decodedUrl;
-        const cached = await kv.get(key);
+        // Create a safe filename from the URL
+        const hash = createHash('sha256').update(decodedUrl).digest('hex');
+        const filename = `${MAPPINGS_PREFIX}${hash}.json`;
         
-        if (cached) {
-          // Increment hits
-          await kv.hincrby(STATS_KEY, 'hits', 1);
+        // Check if mapping exists
+        const { url: fileUrl } = await head(filename);
+        const response = await fetch(fileUrl);
+        
+        if (response.ok) {
+          const data = await response.json();
+          
+          // Update stats
+          const currentStats = await getStats();
+          currentStats.hits++;
+          await saveStats(currentStats);
+          
+          console.log(`✅ Cache HIT: ${decodedUrl} -> ${data.bypassed}`);
           
           return res.status(200).json({ 
             success: true, 
-            url: cached
-          });
-        } else {
-          // Increment misses
-          await kv.hincrby(STATS_KEY, 'misses', 1);
-          
-          return res.status(404).json({ 
-            success: false, 
-            message: 'Not in cache' 
+            url: data.bypassed,
+            source: 'blob'
           });
         }
-      } catch (error) {
-        console.error('Error looking up cache:', error);
-        return res.status(500).json({ error: 'Failed to lookup cache' });
+      } catch {
+        // Not found, continue to miss
       }
+      
+      // Miss
+      const currentStats = await getStats();
+      currentStats.misses++;
+      await saveStats(currentStats);
+      
+      console.log(`❌ Cache MISS: ${decodedUrl}`);
+      
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Not in cache' 
+      });
     }
 
     return res.status(400).json({ error: 'Missing url parameter' });
@@ -95,32 +152,44 @@ export default async function handler(req, res) {
     }
 
     try {
-      const key = CACHE_PREFIX + original;
+      // Create a safe filename from the original URL
+      const hash = createHash('sha256').update(original).digest('hex');
+      const filename = `${MAPPINGS_PREFIX}${hash}.json`;
       
-      // Save to cache PERMANENTLY (no expiration)
-      await kv.set(key, bypassed);
-      
-      // Increment total count
-      await kv.hincrby(STATS_KEY, 'total', 1);
-      
-      // Add to recent list
-      const recentEntry = {
-        original: original,
-        bypassed: bypassed,
+      // Save mapping to blob
+      const mappingData = {
+        original,
+        bypassed,
         timestamp: Date.now()
       };
       
-      await kv.lpush(RECENT_KEY, JSON.stringify(recentEntry));
-      await kv.ltrim(RECENT_KEY, 0, 99); // Keep last 100
+      const mappingBlob = new Blob([JSON.stringify(mappingData)], { type: 'application/json' });
+      await put(filename, mappingBlob, { access: 'public' });
       
-      console.log(`✅ PERMANENTLY SAVED: ${original} -> ${bypassed}`);
+      // Update stats
+      const currentStats = await getStats();
+      currentStats.total++;
+      await saveStats(currentStats);
+      
+      // Update recent mappings
+      const recent = await getRecent();
+      recent.unshift(mappingData);
+      const trimmedRecent = recent.slice(0, 100);
+      await saveRecent(trimmedRecent);
+      
+      console.log(`💾 PERMANENTLY SAVED TO BLOB: ${original} -> ${bypassed}`);
+      console.log(`📁 Filename: ${filename}`);
       
       return res.status(200).json({ 
         success: true, 
-        message: 'Permanently saved to cache'
+        message: 'Permanently saved to Blob storage',
+        mapping: {
+          original,
+          bypassed
+        }
       });
     } catch (error) {
-      console.error('Error saving to cache:', error);
+      console.error('Error saving to blob:', error);
       return res.status(500).json({ error: 'Failed to save to cache' });
     }
   }
