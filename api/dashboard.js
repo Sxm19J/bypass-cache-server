@@ -83,8 +83,8 @@ export default function handler(req, res) {
       color: #64748b;
       font-size: 0.75rem;
     }
-    .clear-btn {
-      background: linear-gradient(135deg, #ef4444, #dc2626);
+    .refresh-btn {
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
       color: white;
       border: none;
       padding: 10px 20px;
@@ -92,15 +92,26 @@ export default function handler(req, res) {
       cursor: pointer;
       font-size: 0.9rem;
       margin-bottom: 20px;
+      margin-right: 10px;
     }
-    .clear-btn:hover {
+    .refresh-btn:hover {
       opacity: 0.9;
+    }
+    .last-updated {
+      color: #64748b;
+      font-size: 0.8rem;
+      margin-bottom: 20px;
     }
   </style>
 </head>
 <body>
   <div class="container">
     <h1>🚀 Bypass Cache Stats</h1>
+    
+    <div>
+      <button class="refresh-btn" onclick="loadStats()">🔄 Refresh</button>
+      <span class="last-updated" id="lastUpdated"></span>
+    </div>
     
     <div class="stats-grid" id="stats">
       <div class="stat-card">
@@ -121,8 +132,6 @@ export default function handler(req, res) {
       </div>
     </div>
 
-    <button class="clear-btn" onclick="clearCache()">🗑️ Clear Cache</button>
-
     <div class="recent-list">
       <h3 style="margin-top: 0; color: #e2e8f0;">📝 Recent Mappings</h3>
       <div id="recent"></div>
@@ -132,7 +141,8 @@ export default function handler(req, res) {
   <script>
     async function loadStats() {
       try {
-        // Use /cache.js instead of /cache
+        document.getElementById('recent').innerHTML = '<div class="recent-item">Loading...</div>';
+        
         const response = await fetch('/api/cache.js?action=stats');
         const data = await response.json();
         
@@ -143,6 +153,8 @@ export default function handler(req, res) {
         const total = (data.hits + data.misses) || 1;
         const hitRate = ((data.hits / total) * 100).toFixed(1);
         document.getElementById('hitRate').textContent = hitRate + '%';
+        
+        document.getElementById('lastUpdated').textContent = 'Last updated: ' + new Date().toLocaleTimeString();
         
         const recentDiv = document.getElementById('recent');
         if (data.recent && data.recent.length > 0) {
@@ -157,25 +169,15 @@ export default function handler(req, res) {
             \`;
           }).join('');
         } else {
-          recentDiv.innerHTML = '<div class="recent-item">No recent mappings</div>';
+          recentDiv.innerHTML = '<div class="recent-item">No recent mappings yet. Try bypassing a link first!</div>';
         }
       } catch (error) {
         console.error('Error loading stats:', error);
-        document.getElementById('recent').innerHTML = '<div class="recent-item">❌ Error loading stats</div>';
+        document.getElementById('recent').innerHTML = '<div class="recent-item">❌ Error loading stats. Make sure the API is working.</div>';
       }
     }
 
-    async function clearCache() {
-      if (confirm('Are you sure you want to clear the entire cache?')) {
-        try {
-          // Note: You'll need to implement a clear endpoint if you want this
-          alert('Clear cache functionality coming soon!');
-        } catch (e) {
-          alert('Error clearing cache');
-        }
-      }
-    }
-
+    // Load stats immediately and every 5 seconds
     loadStats();
     setInterval(loadStats, 5000);
   </script>
