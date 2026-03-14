@@ -1,21 +1,12 @@
-import Cors from 'cors';
 import { getCachedUrl as getKvCachedUrl, saveToCache as saveKvToCache, getStats as getKvStats } from './_lib/db.js';
-
-const cors = Cors({
-  methods: ['GET', 'POST', 'OPTIONS'],
-  origin: '*',
-});
 
 let memoryCache = {};
 let memoryStats = { hits: 0, misses: 0, total: 0, recent: [] };
 
-function runMiddleware(req, res, fn) {
-  return new Promise((resolve, reject) => {
-    fn(req, res, (result) => {
-      if (result instanceof Error) return reject(result);
-      return resolve(result);
-    });
-  });
+function setCors(res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 }
 
 function normalizeUrl(value) {
@@ -27,7 +18,7 @@ function normalizeUrl(value) {
 }
 
 export default async function handler(req, res) {
-  await runMiddleware(req, res, cors);
+  setCors(res);
 
   if (req.method === 'OPTIONS') {
     res.status(200).end();
@@ -35,11 +26,12 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'GET') {
-    const { url, action } = req.query;
+    const { url, action } = req.query || {};
 
     if (action === 'stats') {
       const kvStats = await getKvStats();
       return res.status(200).json({
+        success: true,
         hits: Number(kvStats.hits || 0) + memoryStats.hits,
         misses: Number(kvStats.misses || 0) + memoryStats.misses,
         total: Number(kvStats.total || 0) + memoryStats.total,
