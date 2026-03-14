@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Link Bypasser</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: radial-gradient(circle at 30% 30%, #1a1f2e, #0b0e14 80%);
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 600px;
+            width: 100%;
+            background: rgba(20, 25, 35, 0.75);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 32px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 50px 100px -20px rgba(0, 0, 0, 0.5);
+            padding: 3rem 2rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Animated background orbs */
+        .orb {
+            position: absolute;
+            width: 300px;
+            height: 300px;
+            border-radius: 50%;
+            filter: blur(60px);
+            z-index: 0;
+            animation: float 20s ease-in-out infinite;
+        }
+
+        .orb-1 {
+            top: -50%;
+            left: -20%;
+            background: radial-gradient(circle, rgba(59, 130, 246, 0.2) 0%, transparent 70%);
+        }
+
+        .orb-2 {
+            bottom: -30%;
+            right: -10%;
+            width: 250px;
+            height: 250px;
+            background: radial-gradient(circle, rgba(139, 92, 246, 0.15) 0%, transparent 70%);
+            animation: float 25s ease-in-out infinite reverse;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) rotate(0deg); }
+            33% { transform: translate(30px, -30px) rotate(120deg); }
+            66% { transform: translate(-20px, 20px) rotate(240deg); }
+        }
+
+        .content {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #ffffff, #cbd5e1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            color: #94a3b8;
+            margin-bottom: 2rem;
+            font-size: 1rem;
+        }
+
+        .input-group {
+            margin-bottom: 1.5rem;
+        }
+
+        input {
+            width: 100%;
+            padding: 1rem 1.5rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            color: white;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            background: rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+        }
+
+        input::placeholder {
+            color: #64748b;
+        }
+
+        button {
+            width: 100%;
+            padding: 1rem 1.5rem;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            border: none;
+            border-radius: 16px;
+            color: white;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px -10px #3b82f6;
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button.loading {
+            pointer-events: none;
+            opacity: 0.7;
+        }
+
+        button.loading::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            top: 50%;
+            left: 50%;
+            margin-left: -10px;
+            margin-top: -10px;
+            border: 2px solid transparent;
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .result {
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            border-radius: 16px;
+            display: none;
+            animation: slideUp 0.3s ease-out;
+        }
+
+        .result.success {
+            display: block;
+        }
+
+        .result.error {
+            background: rgba(239, 68, 68, 0.1);
+            border-color: rgba(239, 68, 68, 0.2);
+        }
+
+        .result-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .result-icon {
+            width: 24px;
+            height: 24px;
+        }
+
+        .result-title {
+            font-weight: 600;
+        }
+
+        .result.success .result-title {
+            color: #10b981;
+        }
+
+        .result.error .result-title {
+            color: #ef4444;
+        }
+
+        .result-url {
+            color: #94a3b8;
+            word-break: break-all;
+            font-size: 0.9rem;
+            margin-bottom: 15px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+        }
+
+        .redirect-btn {
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+
+        .redirect-btn:hover {
+            background: #059669;
+        }
+
+        .stats {
+            margin-top: 2rem;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            color: #64748b;
+            font-size: 0.8rem;
+        }
+
+        .stats span {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .stats i {
+            color: #3b82f6;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        
+        <div class="content">
+            <h1>🚀 Link Bypasser</h1>
+            <p class="subtitle">Paste any linkvertise, adf.ly, or shortlink to bypass instantly</p>
+
+            <div class="input-group">
+                <input type="url" id="linkInput" placeholder="https://linkvertise.com/..." value="https://linkvertise.com/329510/test-it-out/1">
+            </div>
+
+            <button id="bypassBtn">Bypass Link ➜</button>
+
+            <div class="result" id="result">
+                <div class="result-header">
+                    <svg class="result-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="20 6 9 17 4 12" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <span class="result-title">Success!</span>
+                </div>
+                <div class="result-url" id="resultUrl"></div>
+                <button class="redirect-btn" id="redirectBtn">Go to link →</button>
+            </div>
+
+            <div class="stats">
+                <span><i>⚡</i> Instant bypass</span>
+                <span><i>🔒</i> Secure</span>
+                <span><i>🔄</i> Free</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const bypassBtn = document.getElementById('bypassBtn');
+        const linkInput = document.getElementById('linkInput');
+        const result = document.getElementById('result');
+        const resultUrl = document.getElementById('resultUrl');
+        const redirectBtn = document.getElementById('redirectBtn');
+
+        bypassBtn.addEventListener('click', async () => {
+            const url = linkInput.value.trim();
+            
+            if (!url) {
+                alert('Please enter a URL');
+                return;
+            }
+
+            // Show loading state
+            bypassBtn.classList.add('loading');
+            bypassBtn.textContent = '';
+
+            try {
+                const response = await fetch('/api/bypass.js', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url })
+                });
+
+                const data = await response.json();
+
+                if (data.status === 'success' && data.result) {
+                    // Show success result
+                    result.className = 'result success';
+                    resultUrl.textContent = data.result;
+                    result.style.display = 'block';
+                    
+                    // Setup redirect button
+                    redirectBtn.onclick = () => {
+                        window.open(data.result, '_blank');
+                    };
+                } else {
+                    // Show error
+                    result.className = 'result error';
+                    resultUrl.textContent = data.error || 'Failed to bypass link';
+                    result.style.display = 'block';
+                }
+            } catch (error) {
+                result.className = 'result error';
+                resultUrl.textContent = 'Network error. Please try again.';
+                result.style.display = 'block';
+            } finally {
+                // Remove loading state
+                bypassBtn.classList.remove('loading');
+                bypassBtn.textContent = 'Bypass Link ➜';
+            }
+        });
+
+        // Allow Enter key to submit
+        linkInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                bypassBtn.click();
+            }
+        });
+
+        // Pre-fill with example on load
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlParam = urlParams.get('url');
+        if (urlParam) {
+            linkInput.value = decodeURIComponent(urlParam);
+            bypassBtn.click();
+        }
+    </script>
+</body>
+</html>
