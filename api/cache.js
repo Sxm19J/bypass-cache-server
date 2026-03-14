@@ -1,90 +1,53 @@
-// SIMPLE CACHE - NO COMPLICATED STUFF
+// Simple cache that works
 let cache = {};
-let stats = {
-  hits: 0,
-  misses: 0,
-  total: 0,
-  recent: []
-};
+let recent = [];
 
 export default function handler(req, res) {
-  // Set CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    // Enable CORS
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  // Handle preflight
-  if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
-  }
-
-  // GET request
-  if (req.method === 'GET') {
-    const { url, action } = req.query;
-
-    // Stats endpoint
-    if (action === 'stats') {
-      return res.status(200).json({
-        hits: stats.hits,
-        misses: stats.misses,
-        total: stats.total,
-        recent: stats.recent.slice(0, 50),
-        totalEntries: Object.keys(cache).length
-      });
+    // Handle preflight
+    if (req.method === 'OPTIONS') {
+        res.status(200).end();
+        return;
     }
 
-    // Cache lookup
-    if (url) {
-      const decodedUrl = decodeURIComponent(url);
-      
-      if (cache[decodedUrl]) {
-        stats.hits++;
-        return res.status(200).json({ 
-          success: true, 
-          url: cache[decodedUrl]
-        });
-      } else {
-        stats.misses++;
-        return res.status(404).json({ 
-          success: false, 
-          message: 'Not in cache' 
-        });
-      }
+    // GET request
+    if (req.method === 'GET') {
+        const { url, action } = req.query;
+
+        // Stats
+        if (action === 'stats') {
+            return res.status(200).json({
+                totalEntries: Object.keys(cache).length,
+                recent: recent.slice(0, 20)
+            });
+        }
+
+        // Lookup URL
+        if (url) {
+            const decoded = decodeURIComponent(url);
+            if (cache[decoded]) {
+                return res.status(200).json({ success: true, url: cache[decoded] });
+            }
+            return res.status(404).json({ success: false });
+        }
     }
 
-    return res.status(400).json({ error: 'Missing url parameter' });
-  }
-
-  // POST request
-  if (req.method === 'POST') {
-    const { original, bypassed } = req.body;
-
-    if (!original || !bypassed) {
-      return res.status(400).json({ error: 'Missing fields' });
+    // POST request
+    if (req.method === 'POST') {
+        const { original, bypassed } = req.body;
+        
+        if (original && bypassed) {
+            cache[original] = bypassed;
+            recent.unshift({ original, bypassed, timestamp: Date.now() });
+            recent = recent.slice(0, 100);
+            console.log('Cached:', original, '->', bypassed);
+            return res.status(200).json({ success: true });
+        }
     }
 
-    // Save to cache
-    cache[original] = bypassed;
-    stats.total++;
-    
-    // Add to recent
-    stats.recent.unshift({
-      original: original,
-      bypassed: bypassed,
-      timestamp: Date.now()
-    });
-    
-    // Keep only last 100
-    stats.recent = stats.recent.slice(0, 100);
-
-    console.log(`✅ Saved: ${original} -> ${bypassed}`);
-
-    return res.status(200).json({ 
-      success: true, 
-      message: 'Saved!'
-    });
-  }
-
-  return res.status(405).json({ error: 'Method not allowed' });
+    res.status(400).json({ error: 'Invalid request' });
 }
