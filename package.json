@@ -6,9 +6,6 @@
     "deploy": "vercel deploy --prod"
   },
   "dependencies": {
-    "cors": "^2.8.5"
-  },
-  "devDependencies": {
-    "vercel": "^32.0.0"
+    "@vercel/kv": "^1.0.0"
   }
 }
