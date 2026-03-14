@@ -26,6 +26,8 @@ export default async function handler(req, res) {
     const API_KEY = 'bt_e3c57954e8be9b2d0f0a85abcc58e0f32ef787444b396b60';
 
     try {
+        console.log('Sending request to bypass API for:', url);
+        
         const response = await fetch(API_URL, {
             method: 'POST',
             headers: {
@@ -39,25 +41,28 @@ export default async function handler(req, res) {
         });
 
         const data = await response.json();
+        console.log('API Response:', data);
 
         if (data.status === 'success' && data.result) {
             return res.status(200).json({
                 status: 'success',
                 result: data.result,
                 cached: data.cached || false,
-                processTime: data.processTime
+                processTime: data.processTime,
+                requestId: data.requestId
             });
         } else {
             return res.status(400).json({
                 status: 'error',
-                error: 'Failed to bypass link'
+                error: data.message || 'Failed to bypass link',
+                details: data
             });
         }
     } catch (error) {
         console.error('Bypass error:', error);
         return res.status(500).json({
             status: 'error',
-            error: 'Server error'
+            error: 'Server error: ' + error.message
         });
     }
 }
