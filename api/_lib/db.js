@@ -1,70 +1,78 @@
-// Using Vercel KV (Redis) for persistent storage
 import { createClient } from '@vercel/kv';
 
-// Initialize KV client
-const kv = createClient({
-  url: process.env.KV_REST_API_URL,
-  token: process.env.KV_REST_API_TOKEN,
-});
+const kv = process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN
+  ? createClient({
+      url: process.env.KV_REST_API_URL,
+      token: process.env.KV_REST_API_TOKEN,
+    })
+  : null;
 
 const CACHE_PREFIX = 'bypass:';
 const STATS_KEY = 'bypass:stats';
+const RECENT_KEY = 'bypass:recent';
+const CACHE_TTL_SECONDS = 60 * 60;
 
 export async function getCachedUrl(originalUrl) {
+  if (!kv) return null;
+
   try {
     const key = CACHE_PREFIX + originalUrl;
     const data = await kv.get(key);
-    
+
     if (data) {
-      // Update stats
       await kv.hincrby(STATS_KEY, 'hits', 1);
       return data;
     }
-    
+
     await kv.hincrby(STATS_KEY, 'misses', 1);
     return null;
   } catch (error) {
-    console.error('Error getting from cache:', error);
+    console.error('Error getting from KV cache:', error);
     return null;
   }
 }
 
 export async function saveToCache(originalUrl, bypassedUrl) {
+  if (!kv) return false;
+
   try {
     const key = CACHE_PREFIX + originalUrl;
-    await kv.set(key, bypassedUrl);
-    
-    // Add to recent list
-    await kv.lpush('bypass:recent', JSON.stringify({
-      original: originalUrl,
-      bypassed: bypassedUrl,
-      timestamp: Date.now()
-    }));
-    await kv.ltrim('bypass:recent', 0, 99); // Keep only last 100
-    
-    // Update total count
+    await kv.set(key, bypassedUrl, { ex: CACHE_TTL_SECONDS });
+
+    await kv.lpush(
+      RECENT_KEY,
+      JSON.stringify({
+        original: originalUrl,
+        bypassed: bypassedUrl,
+        timestamp: Date.now(),
+      }),
+    );
+    await kv.ltrim(RECENT_KEY, 0, 99);
+
     await kv.hincrby(STATS_KEY, 'total', 1);
-    
     return true;
   } catch (error) {
-    console.error('Error saving to cache:', error);
+    console.error('Error saving to KV cache:', error);
     return false;
   }
 }
 
 export async function getStats() {
+  if (!kv) {
+    return { hits: 0, misses: 0, total: 0, recent: [], totalEntries: 0 };
+  }
+
   try {
-    const stats = await kv.hgetall(STATS_KEY) || { hits: 0, misses: 0, total: 0 };
-    const recent = await kv.lrange('bypass:recent', 0, 9);
-    const totalKeys = await kv.dbsize();
-    
+    const stats = (await kv.hgetall(STATS_KEY)) || { hits: 0, misses: 0, total: 0 };
+    const recent = await kv.lrange(RECENT_KEY, 0, 9);
+
     return {
       ...stats,
-      recent: recent.map(item => JSON.parse(item)),
-      totalEntries: totalKeys
+      recent: recent.map((item) => JSON.parse(item)),
+      totalEntries: Number(stats.total || 0),
     };
   } catch (error) {
-    console.error('Error getting stats:', error);
-    return { hits: 0, misses: 0, total: 0, recent: [] };
+    console.error('Error getting KV stats:', error);
+    return { hits: 0, misses: 0, total: 0, recent: [], totalEntries: 0 };
   }
 }
