@@ -3,12 +3,12 @@ export default function handler(req, res) {
   res.status(200).send(`<!DOCTYPE html>
 <html>
 <head>
-  <title>Bypass Cache Stats</title>
+  <title>Bypass Cache</title>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: #0b0e14;
       color: #fff;
       margin: 0;
@@ -19,9 +19,7 @@ export default function handler(req, res) {
       margin: 0 auto;
     }
     h1 {
-      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      color: #3b82f6;
       margin-bottom: 30px;
     }
     .stats-grid {
@@ -32,10 +30,8 @@ export default function handler(req, res) {
     }
     .stat-card {
       background: rgba(255, 255, 255, 0.05);
-      backdrop-filter: blur(10px);
       border-radius: 16px;
       padding: 20px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
     }
     .stat-value {
       font-size: 2.5rem;
@@ -45,73 +41,54 @@ export default function handler(req, res) {
     }
     .stat-label {
       color: #94a3b8;
-      font-size: 0.9rem;
     }
     .recent-list {
       background: rgba(255, 255, 255, 0.05);
-      backdrop-filter: blur(10px);
       border-radius: 16px;
       padding: 20px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      margin-top: 20px;
     }
     .recent-item {
       padding: 15px;
       border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-      font-size: 0.9rem;
     }
     .recent-item:last-child {
       border-bottom: none;
     }
-    .recent-item:hover {
-      background: rgba(255, 255, 255, 0.02);
-    }
-    .original-url {
+    .original {
       color: #94a3b8;
       font-size: 0.8rem;
-      margin-bottom: 5px;
       word-break: break-all;
     }
-    .bypassed-url {
+    .bypassed {
       color: #10b981;
       font-size: 0.9rem;
       font-weight: 500;
       word-break: break-all;
-      margin-bottom: 5px;
+      margin: 5px 0;
     }
     .timestamp {
       color: #64748b;
       font-size: 0.75rem;
     }
     .refresh-btn {
-      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      background: #3b82f6;
       color: white;
       border: none;
       padding: 10px 20px;
       border-radius: 8px;
       cursor: pointer;
-      font-size: 0.9rem;
       margin-bottom: 20px;
-      margin-right: 10px;
     }
     .refresh-btn:hover {
-      opacity: 0.9;
-    }
-    .last-updated {
-      color: #64748b;
-      font-size: 0.8rem;
-      margin-bottom: 20px;
+      background: #2563eb;
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>🚀 Bypass Cache Stats</h1>
+    <h1>🚀 Bypass Cache</h1>
     
-    <div>
-      <button class="refresh-btn" onclick="loadStats()">🔄 Refresh</button>
-      <span class="last-updated" id="lastUpdated"></span>
-    </div>
+    <button class="refresh-btn" onclick="loadStats()">🔄 Refresh</button>
     
     <div class="stats-grid" id="stats">
       <div class="stat-card">
@@ -133,7 +110,7 @@ export default function handler(req, res) {
     </div>
 
     <div class="recent-list">
-      <h3 style="margin-top: 0; color: #e2e8f0;">📝 Recent Mappings</h3>
+      <h3 style="margin-top: 0;">Recent Mappings</h3>
       <div id="recent"></div>
     </div>
   </div>
@@ -141,8 +118,6 @@ export default function handler(req, res) {
   <script>
     async function loadStats() {
       try {
-        document.getElementById('recent').innerHTML = '<div class="recent-item">Loading...</div>';
-        
         const response = await fetch('/api/cache.js?action=stats');
         const data = await response.json();
         
@@ -154,30 +129,27 @@ export default function handler(req, res) {
         const hitRate = ((data.hits / total) * 100).toFixed(1);
         document.getElementById('hitRate').textContent = hitRate + '%';
         
-        document.getElementById('lastUpdated').textContent = 'Last updated: ' + new Date().toLocaleTimeString();
-        
         const recentDiv = document.getElementById('recent');
         if (data.recent && data.recent.length > 0) {
           recentDiv.innerHTML = data.recent.map(item => {
             const date = new Date(item.timestamp);
             return \`
               <div class="recent-item">
-                <div class="original-url">🔗 Original: \${item.original}</div>
-                <div class="bypassed-url">✅ Bypassed: \${item.bypassed}</div>
-                <div class="timestamp">⏱️ \${date.toLocaleString()}</div>
+                <div class="original">🔗 \${item.original}</div>
+                <div class="bypassed">✅ \${item.bypassed}</div>
+                <div class="timestamp">\${date.toLocaleString()}</div>
               </div>
             \`;
           }).join('');
         } else {
-          recentDiv.innerHTML = '<div class="recent-item">No recent mappings yet. Try bypassing a link first!</div>';
+          recentDiv.innerHTML = '<div class="recent-item">No mappings yet</div>';
         }
       } catch (error) {
-        console.error('Error loading stats:', error);
-        document.getElementById('recent').innerHTML = '<div class="recent-item">❌ Error loading stats. Make sure the API is working.</div>';
+        console.error('Error:', error);
+        document.getElementById('recent').innerHTML = '<div class="recent-item">Error loading stats</div>';
       }
     }
 
-    // Load stats immediately and every 5 seconds
     loadStats();
     setInterval(loadStats, 5000);
   </script>
