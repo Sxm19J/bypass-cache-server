@@ -11,28 +11,34 @@ export default function handler(req, res) {
   <h1>Bypass Cache Stats</h1>
   <pre id="stats">Loading...</pre>
   <script>
+    const statsEndpoints = ['/api/cache.js?action=stats', '/api/cache?action=stats'];
+
     async function loadStats() {
       const el = document.getElementById('stats');
-      try {
-        const response = await fetch('/api/cache?action=stats');
-        const contentType = response.headers.get('content-type') || '';
-        const raw = await response.text();
 
-        if (!response.ok) {
-          el.textContent = 'Stats request failed (' + response.status + ')\\n\\n' + raw;
+      for (const endpoint of statsEndpoints) {
+        try {
+          const response = await fetch(endpoint);
+          const raw = await response.text();
+          const contentType = response.headers.get('content-type') || '';
+
+          if (!response.ok) {
+            continue;
+          }
+
+          if (!contentType.includes('application/json')) {
+            continue;
+          }
+
+          const data = JSON.parse(raw);
+          el.textContent = JSON.stringify({ endpoint, ...data }, null, 2);
           return;
+        } catch (error) {
+          // Try the next endpoint.
         }
-
-        if (!contentType.includes('application/json')) {
-          el.textContent = 'Expected JSON but got: ' + contentType + '\\n\\n' + raw;
-          return;
-        }
-
-        const data = JSON.parse(raw);
-        el.textContent = JSON.stringify(data, null, 2);
-      } catch (e) {
-        el.textContent = 'Error loading stats: ' + String(e);
       }
+
+      el.textContent = 'Stats request failed on both /api/cache.js and /api/cache';
     }
 
     loadStats();
