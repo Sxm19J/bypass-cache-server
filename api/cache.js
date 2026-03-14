@@ -1,4 +1,9 @@
-import { getCachedUrl as getKvCachedUrl, saveToCache as saveKvToCache, getStats as getKvStats } from './_lib/db.js';
+import {
+  getCachedUrl as getKvCachedUrl,
+  saveToCache as saveKvToCache,
+  getStats as getKvStats,
+  isKvAvailable,
+} from './_lib/db.js';
 
 let memoryCache = {};
 let memoryStats = { hits: 0, misses: 0, total: 0, recent: [] };
@@ -45,9 +50,15 @@ export default async function handler(req, res) {
     }
 
     const decodedUrl = normalizeUrl(url);
-    const kvHit = await getKvCachedUrl(decodedUrl);
-    if (kvHit) {
-      return res.status(200).json({ success: true, url: kvHit, source: 'vercel-kv' });
+    const kvEnabled = await isKvAvailable();
+
+    if (kvEnabled) {
+      const kvHit = await getKvCachedUrl(decodedUrl);
+      if (kvHit) {
+        return res.status(200).json({ success: true, url: kvHit, source: 'vercel-kv' });
+      }
+
+      return res.status(404).json({ success: false, message: 'Not in cache' });
     }
 
     const memoryHit = memoryCache[decodedUrl];
