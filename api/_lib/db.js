@@ -27,6 +27,10 @@ const STATS_KEY = 'bypass:stats';
 const RECENT_KEY = 'bypass:recent';
 const CACHE_TTL_SECONDS = 60 * 60;
 
+export async function isKvAvailable() {
+  return Boolean(await getKvClient());
+}
+
 export async function getCachedUrl(originalUrl) {
   const kv = await getKvClient();
   if (!kv) return null;
