@@ -11,14 +11,31 @@ export default function handler(req, res) {
   <h1>Bypass Cache Stats</h1>
   <pre id="stats">Loading...</pre>
   <script>
-    fetch('/api/cache?action=stats')
-      .then((r) => r.json())
-      .then((data) => {
-        document.getElementById('stats').textContent = JSON.stringify(data, null, 2);
-      })
-      .catch((e) => {
-        document.getElementById('stats').textContent = String(e);
-      });
+    async function loadStats() {
+      const el = document.getElementById('stats');
+      try {
+        const response = await fetch('/api/cache?action=stats');
+        const contentType = response.headers.get('content-type') || '';
+        const raw = await response.text();
+
+        if (!response.ok) {
+          el.textContent = 'Stats request failed (' + response.status + ')\\n\\n' + raw;
+          return;
+        }
+
+        if (!contentType.includes('application/json')) {
+          el.textContent = 'Expected JSON but got: ' + contentType + '\\n\\n' + raw;
+          return;
+        }
+
+        const data = JSON.parse(raw);
+        el.textContent = JSON.stringify(data, null, 2);
+      } catch (e) {
+        el.textContent = 'Error loading stats: ' + String(e);
+      }
+    }
+
+    loadStats();
   </script>
 </body>
 </html>`);
